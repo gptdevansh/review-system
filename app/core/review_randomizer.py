@@ -18,14 +18,28 @@ Dice:
   6. Priority           — which aspect of the trip they focus on most
   7. Service used       — correlated with Die 1 (age) + Die 3 (group), NOT pure random
 
-Possible combinations: 5 × 5 × 5 × 5 × 5 × 5 = 15,625 base combinations
-(before length and temperature variation — effectively unlimited at 50 reviews)
+Optional Rolls:
+  Friction Seed         — 25% chance: one minor real-world imperfection is injected
+  Emotional Outcome     — always rolled: controls the emotional landing of the review
+                          (replaces the default "peace/relief/unforgettable" monoculture)
+
+v2 changes (post-audit):
+  - Added FrictionSeed die (25% probability): kills the "zero imperfection" AI tell
+  - Added EmotionalOutcome die: breaks the "peace of mind / unforgettable" monoculture
+  - Added post-roll anxiety-arc override: prevents "senior family + logistics" combo
+    from generating the guaranteed problem→solution narrative structure
+  - PersonaCard updated to carry friction_seed and emotional_outcome
+  - format_persona_for_prompt() injects both into the character block
+
+Possible combinations: 5 × 5 × 5 × 5 × 5 × 5 × 8 outcomes × 2 (friction/no friction)
+= ~125,000 base combinations (before length and temperature variation)
 """
 
 from __future__ import annotations
 
 import random
 from dataclasses import dataclass
+from typing import Optional
 
 from app.prompts.service_prompts import ALL_SERVICES, ServiceContext
 
@@ -69,6 +83,181 @@ _LENGTH_PROFILES: list[LengthProfile] = [
 
 # Mirrors real review length distribution — short reviews are more common
 _LENGTH_WEIGHTS: list[float] = [0.12, 0.30, 0.38, 0.20]
+
+
+# ── Friction Seed (Optional Die — 25% probability) ────────────────────────────
+#
+# Injects one minor, harmless real-world imperfection into 1 in 4 reviews.
+# This is the single most powerful human-authenticity signal:
+#   → AI never includes mild negatives in a 5-star review unless forced
+#   → Real customers almost always mention at least one small thing
+#   → Total absence of imperfection across a batch is a stronger AI signal
+#     than any single review's wording
+
+@dataclass(frozen=True)
+class FrictionSeed:
+    label: str
+    description: str  # Injected into persona block; LLM weaves it in naturally
+
+
+_FRICTION_SEEDS: list[FrictionSeed] = [
+    FrictionSeed(
+        label="late-start",
+        description=(
+            "The vehicle or guide arrived 15-20 minutes later than the agreed time. "
+            "You weren't particularly annoyed — it happens on mountain roads — but "
+            "mention it matter-of-factly. Do not apologize for it or dismiss it. "
+            "Just note it as something that happened."
+        ),
+    ),
+    FrictionSeed(
+        label="no-wifi",
+        description=(
+            "The hotel or resort had poor or non-existent wifi. You noticed it. "
+            "You either didn't mind (wanted a break from screens anyway) "
+            "or mention it as a passing note — not a deal-breaker, just a fact."
+        ),
+    ),
+    FrictionSeed(
+        label="bumpy-road",
+        description=(
+            "One stretch of the mountain road was rough, potholed, or under repair — "
+            "quite bumpy for 15-20 minutes. The vehicle handled it fine but you felt it. "
+            "Mention it as a passing observation without dramatizing."
+        ),
+    ),
+    FrictionSeed(
+        label="no-big-sighting",
+        description=(
+            "The safari did not produce the big wildlife sighting you were hoping for — "
+            "no tiger, or the tiger was spotted only briefly and very far away. "
+            "You still had a good overall time. Acknowledge the miss plainly, "
+            "without forcing fake optimism about it."
+        ),
+    ),
+    FrictionSeed(
+        label="crowded-spot",
+        description=(
+            "One part of the trip — a viewpoint, a ghat, a temple, or a lake — was "
+            "more crowded than you had expected. You found a way around it or accepted it. "
+            "Mention it as context, not as a serious complaint."
+        ),
+    ),
+    FrictionSeed(
+        label="check-in-wait",
+        description=(
+            "Check-in at the hotel or resort took longer than expected — maybe 20-30 minutes "
+            "of waiting even though the booking was pre-confirmed. You got your room and it "
+            "was fine. Mention the wait briefly as part of the experience."
+        ),
+    ),
+    FrictionSeed(
+        label="room-smaller",
+        description=(
+            "The room was slightly smaller than the photos suggested — not cramped, "
+            "but noticeably compact. You barely spent time inside anyway, so it didn't matter. "
+            "Worth a passing note."
+        ),
+    ),
+    FrictionSeed(
+        label="food-miss",
+        description=(
+            "The food at the hotel or a local dhaba on the way was average — not bad, "
+            "but not memorable either. You found something better nearby or just lived with it. "
+            "Mention it briefly as a minor observation."
+        ),
+    ),
+]
+
+# 25% of reviews get a friction seed
+_FRICTION_PROBABILITY: float = 0.25
+
+
+# ── Emotional Outcome Die ──────────────────────────────────────────────────────
+#
+# Controls the emotional DESTINATION of the review — what feeling the final
+# sentence or observation lands on.
+#
+# Without this die, the system defaults every review to:
+#   "peace of mind / stress-free / truly unforgettable / relief"
+# — which is the #2 most common AI-batch fingerprint (after the anxiety arc).
+# This die forces real emotional variety across the batch.
+
+@dataclass(frozen=True)
+class EmotionalOutcome:
+    label: str
+    landing_note: str  # The emotional color the review should end on
+
+
+_EMOTIONAL_OUTCOMES: list[EmotionalOutcome] = [
+    EmotionalOutcome(
+        label="quiet satisfaction",
+        landing_note=(
+            "The trip simply worked. No peak emotional moment — just a clean, satisfying "
+            "experience that delivered what it promised. The review ends on calm approval, "
+            "not euphoria. The tone is matter-of-fact: 'it was good, that's it.'"
+        ),
+    ),
+    EmotionalOutcome(
+        label="still buzzing",
+        landing_note=(
+            "You're still riding the energy of the trip. Sentences are shorter and punchier. "
+            "The excitement is genuine and comes through in rhythm, not superlatives. "
+            "The review ends on forward-leaning energy — the feeling hasn't settled yet."
+        ),
+    ),
+    EmotionalOutcome(
+        label="childlike delight",
+        landing_note=(
+            "Something specific — a child's reaction, an unexpected animal, a view — produced "
+            "a moment of pure, uncomplicated happiness. The review ends on that one moment "
+            "of delight, described through behavior or observation rather than adjectives."
+        ),
+    ),
+    EmotionalOutcome(
+        label="awe at the place itself",
+        landing_note=(
+            "The natural environment — the forest, the peaks, the river, the mist, the silence — "
+            "genuinely stopped you. The review ends on the PLACE, not the service. "
+            "The landscape is the hero of the last sentence, not the company."
+        ),
+    ),
+    EmotionalOutcome(
+        label="ease and rest",
+        landing_note=(
+            "The trip gave you actual rest — you switched off, got good sleep, felt unhurried. "
+            "Express this as a POSITIVE you received ('we actually slept well', 'the mornings "
+            "were completely quiet') NOT as the absence of a negative. "
+            "Never say 'no stress' — say what the positive experience felt like."
+        ),
+    ),
+    EmotionalOutcome(
+        label="nostalgia and longing",
+        landing_note=(
+            "You already miss the place. The review has a slightly wistful quality — "
+            "you describe one thing about the location that you keep thinking about since "
+            "returning. It ends on the memory, not on a service verdict."
+        ),
+    ),
+    EmotionalOutcome(
+        label="pride in the achievement",
+        landing_note=(
+            "A sense of accomplishment — especially relevant for harder trips: Kedarnath, "
+            "Valley of Flowers, a long mountain drive, a remote homestay. "
+            "The review reflects 'we did this and it was worth it' energy — "
+            "the satisfaction of having pushed to do something difficult."
+        ),
+    ),
+    EmotionalOutcome(
+        label="genuine surprise",
+        landing_note=(
+            "Something exceeded your expectations — but NOT because you set up a pre-trip worry. "
+            "The surprise just happened naturally. You didn't expect the room to have that view. "
+            "You didn't expect the forest to feel that dense. "
+            "Express genuine mild surprise WITHOUT the manufactured anxiety-arc setup."
+        ),
+    ),
+]
 
 
 # ── Die 1: Age Bucket ──────────────────────────────────────────────────────────
@@ -200,8 +389,9 @@ _TRAVEL_GROUPS: list[TravelGroup] = [
     TravelGroup(
         label="Family with young children",
         perspective_note=(
-            "Very aware of the children's experience — their reactions, safety, patience required. "
-            "Comfort and ease are top priorities. May mention the kids noticed or enjoyed something."
+            "Very aware of the children's experience — their reactions, what they noticed, "
+            "what made them excited. Writes from the parent's point of view watching the kids. "
+            "Focus on what the children DID and RESPONDED to — not on anxieties managed."
         ),
     ),
     TravelGroup(
@@ -214,8 +404,9 @@ _TRAVEL_GROUPS: list[TravelGroup] = [
     TravelGroup(
         label="Traveling with parents or senior family members",
         perspective_note=(
-            "Very conscious of accessibility and ease for elders. "
-            "Grateful and responsible tone. Driver patience, comfort, and no-hassle experience matter most."
+            "Writes about what the elders NOTICED and ENJOYED — a particular view they loved, "
+            "a moment of ease, something that made them smile. "
+            "Focus on the elders' positive experience — not on logistics managed or anxieties resolved."
         ),
     ),
 ]
@@ -249,22 +440,24 @@ _PERSONALITIES: list[Personality] = [
     Personality(
         label="Grateful and warm",
         description=(
-            "Genuinely appreciative. Thanks the team or acknowledges the effort in a human way. "
+            "Genuinely appreciative. Acknowledges a specific moment or detail in a human way. "
             "Warmth without being gushing or performative."
         ),
     ),
     Personality(
         label="Pleasantly surprised (slight skeptic)",
         description=(
-            "Came in without high expectations — pleasantly proved wrong. "
-            "Review reflects being won over. Slightly understated but genuinely positive."
+            "Something specifically exceeded what they expected — NOT because they set up "
+            "a pre-trip anxiety. The surprise is concrete and specific. "
+            "Slightly understated but genuinely positive."
         ),
     ),
     Personality(
         label="Storyteller",
         description=(
-            "Builds context before landing the verdict. Sets a small scene or describes a moment. "
-            "Review reads like they're telling a friend about the trip."
+            "Sets a small scene or describes a moment before landing the observation. "
+            "Review reads like they're telling a friend one specific thing about the trip. "
+            "Builds to a single point — not a checklist."
         ),
     ),
 ]
@@ -297,7 +490,9 @@ _TYPING_STYLES: list[TypingStyle] = [
         label="Natural Hinglish code-switcher",
         description=(
             "Moves between Hindi and English mid-thought — not forced, just how they think. "
-            "The Hindi words emerge where they feel more natural than the English equivalent."
+            "The Hindi words emerge where they feel more natural than the English equivalent. "
+            "The sentence structure itself is sometimes Hindi-influenced — not just English "
+            "with Hindi words inserted. Fragments are grammatically correct in Hindi logic."
         ),
     ),
     TypingStyle(
@@ -351,7 +546,8 @@ _PRIORITIES: list[Priority] = [
         label="Reliability and logistics",
         focus_note=(
             "Cares most about things running smoothly — punctuality, pre-arrangement, "
-            "no last-minute surprises. Good logistics = good trip for this person."
+            "no last-minute surprises. Good logistics = good trip for this person. "
+            "Write about ONE specific logistics win, not the entire operational checklist."
         ),
     ),
     Priority(
@@ -418,11 +614,11 @@ def _compute_service_weights(age: AgeBucket, group: TravelGroup) -> list[float]:
 class PersonaCard:
     """
     A fully composed persona for one review generation.
-    Contains all 7 dice rolls in a single coherent package.
+    Contains all 7 dice rolls + optional friction seed + emotional outcome.
     """
     seed: int
-    age: AgeBucket           # Die 1
-    region: Region           # Die 2
+    age: AgeBucket             # Die 1
+    region: Region             # Die 2
     travel_group: TravelGroup  # Die 3
     personality: Personality   # Die 4
     typing_style: TypingStyle  # Die 5
@@ -430,17 +626,24 @@ class PersonaCard:
     service: ServiceContext    # Die 7 — correlated, not independent
     length: LengthProfile
     temperature_offset: float
-    resolved_context_str: str  # The specific scenario string for this roll
+    resolved_context_str: str         # The specific scenario string for this roll
+    friction_seed: Optional[FrictionSeed]  # None for 75% of reviews
+    emotional_outcome: EmotionalOutcome   # Always rolled — controls emotional landing
 
 
 # ── Roll function ──────────────────────────────────────────────────────────────
 
 def roll_persona() -> PersonaCard:
     """
-    Roll all 7 dice to compose a unique, internally coherent persona.
+    Roll all 7 dice + friction seed + emotional outcome to compose a unique,
+    internally coherent persona.
 
     Dice 1–6 are independent. Die 7 (service) uses weights computed
     from Die 1 (age) + Die 3 (travel group) for realistic correlation.
+
+    Post-roll override: the "anxiety arc" combos (senior/family group +
+    reliability priority) are detected and priority is re-rolled to
+    prevent the guaranteed problem→solution narrative structure.
 
     Each call gets a fresh seed — fully reproducible if needed.
     """
@@ -455,14 +658,35 @@ def roll_persona() -> PersonaCard:
     priority     = rng.choice(_PRIORITIES)
     length       = rng.choices(_LENGTH_PROFILES,   weights=_LENGTH_WEIGHTS,       k=1)[0]
 
+    # ── Fix 5: Break the "anxiety arc" persona combo ───────────────────────────
+    # These two groups + "Reliability and logistics" priority = guaranteed
+    # problem→solution narrative arc in the LLM output.
+    # Re-roll priority to any non-logistics option to prevent this.
+    _anxiety_arc_groups = {
+        "Traveling with parents or senior family members",
+        "Family with young children",
+    }
+    if (travel_group.label in _anxiety_arc_groups
+            and priority.label == "Reliability and logistics"):
+        non_logistics = [p for p in _PRIORITIES if p.label != "Reliability and logistics"]
+        priority = rng.choice(non_logistics)
+
     # Die 7: service correlated with age + travel group
     service_weights = _compute_service_weights(age, travel_group)
     service = rng.choices(ALL_SERVICES, weights=service_weights, k=1)[0]
-    
+
     # Resolve the final specific scenario in Python using the same rng seed
     resolved_context = service.get_context(rng)
 
     temperature_offset = rng.uniform(-0.10, 0.10)
+
+    # ── Fix 2: Friction Seed (25% probability) ─────────────────────────────────
+    friction_seed: Optional[FrictionSeed] = None
+    if rng.random() < _FRICTION_PROBABILITY:
+        friction_seed = rng.choice(_FRICTION_SEEDS)
+
+    # ── Fix 4: Emotional Outcome (always rolled) ───────────────────────────────
+    emotional_outcome = rng.choice(_EMOTIONAL_OUTCOMES)
 
     return PersonaCard(
         seed=seed,
@@ -476,6 +700,8 @@ def roll_persona() -> PersonaCard:
         length=length,
         temperature_offset=temperature_offset,
         resolved_context_str=resolved_context,
+        friction_seed=friction_seed,
+        emotional_outcome=emotional_outcome,
     )
 
 
@@ -486,11 +712,20 @@ def format_persona_for_prompt(card: PersonaCard) -> str:
     Convert a PersonaCard into a purely descriptive character profile
     for injection into the LLM system prompt.
 
-    Design rule: Describe WHO this person IS.
+    Design rule: Describe WHO this person IS and WHERE they should emotionally land.
     Do NOT prescribe specific words, phrases, or Hinglish examples.
     The LLM infers natural language from the character — not from a vocabulary menu.
     This prevents any single phrase from repeating across reviews.
     """
+    # Build optional friction block
+    friction_block = ""
+    if card.friction_seed is not None:
+        friction_block = f"""
+── MINOR REAL-WORLD DETAIL ──
+(Weave this into the review naturally — don't dramatize it, don't apologize for it, don't let it become the main point)
+{card.friction_seed.description}
+"""
+
     return f"""── THIS REVIEWER (seed #{card.seed}) ──
 
 WHO THEY ARE:
@@ -512,9 +747,17 @@ Travel group lens: {card.travel_group.perspective_note}
 REVIEW LENGTH: {card.length.label} — {card.length.word_hint}
   → {card.length.description}
   → Aim for {card.length.sentence_range[0]} to {card.length.sentence_range[1]} sentences
+{friction_block}
+── EMOTIONAL LANDING ──
+(This is where the review ends up — the feeling of the last observation)
+{card.emotional_outcome.landing_note}
 
-WRITE AS THIS PERSON — fully inhabit their voice.
-Adopt their energy level, grammar habits, sentence rhythm, and cultural background completely.
+── WRITE AS THIS PERSON ──
+Fully inhabit their voice. Adopt their energy level, grammar habits,
+sentence rhythm, and cultural background completely.
 If their natural style includes small imperfections, let them be.
 If they would write three words and stop, stop there.
-Do NOT sand down their voice into smooth, polished AI prose."""
+Do NOT sand down their voice into smooth, polished AI prose.
+Do NOT apply a narrative arc (worry → resolution → thanks).
+Do NOT wrap up with a conclusion sentence.
+Start in the experience. End when the last observation is complete."""

@@ -5,6 +5,14 @@ Each ServiceContext provides factual background about ONE service.
 To prevent the LLM from deterministically picking the first bullet point every time,
 the specific scenario/route/hotel is chosen randomly in Python via `get_context(rng)`.
 The LLM only ever sees ONE scenario to write about per generation.
+
+v2 changes (post-audit):
+  - Rewrote all base_context blocks from "WHAT GOLA ARRANGED: ..." (company-as-hero)
+    to "YOUR EXPERIENCE: ..." (customer-as-subject) framing
+  - Removed city attribution ("Ramnagar, Uttarakhand") from every base_context block
+    to prevent it from appearing as a planted SEO phrase in every review
+  - Explicitly directs the LLM to write from the customer's sensory/experiential
+    perspective rather than cataloguing the business's service capabilities
 """
 
 from __future__ import annotations
@@ -26,7 +34,7 @@ class ServiceContext:
         scenario = rng.choice(self.scenarios)
         return (
             f"{self.base_context}\n\n"
-            f"SPECIFIC SCENARIO TO WRITE ABOUT (Focus only on this):\n- {scenario}"
+            f"SPECIFIC EXPERIENCE TO WRITE ABOUT (focus only on this one):\n- {scenario}"
         )
 
 
@@ -36,9 +44,13 @@ _SAFARI = ServiceContext(
     service_id="safari",
     service_name="Jim Corbett Safari",
     base_context=(
-        "SERVICE: Jim Corbett jungle safari booked through Gola Holidays.\n"
-        "WHAT GOLA ARRANGED: permit booking, safari vehicle, and guide.\n"
-        "Company: Gola Holidays, Ramnagar, Uttarakhand."
+        "SERVICE TYPE: Jim Corbett National Park jungle safari.\n"
+        "HOW IT WORKS: You get a jeep or canter, a forest guide, and a zone-specific permit "
+        "for a timed slot inside the park. Booking these through a local operator saves "
+        "the offline permit process.\n"
+        "WRITE FROM: Your experience inside the jungle — what you saw, heard, felt. "
+        "The forest, the animals, the early morning drive. "
+        "Not a list of what was 'arranged' — your actual time in the jungle."
     ),
     scenarios=[
         "Bijrani Zone (Jeep Safari) — dense sal forest, high tiger activity, spotted a tiger, jeep picked us up from resort",
@@ -47,7 +59,7 @@ _SAFARI = ServiceContext(
         "Dhikala Zone (Day Visit via Canter Safari) — shared open Canter bus starting from Ramnagar town (no resort pickup), deep core zone, very limited permits, saw a tusker",
         "Durga Devi Zone (Jeep Safari) — remote, river views, less crowded, crocodile on Ramganga riverbank",
         "Sitabani Zone (Jeep Safari) — buffer zone, no permit needed, quieter, peacocks and hornbills",
-        "Forest Rest House stay (Night Stay inside Dhikala) — sleeping inside the core park, exclusive jeep safari inside, jungle sounds at night"
+        "Forest Rest House stay (Night Stay inside Dhikala) — sleeping inside the core park, exclusive jeep safari inside, jungle sounds at night",
     ],
 )
 
@@ -58,9 +70,13 @@ _HOTEL = ServiceContext(
     service_id="hotel",
     service_name="Hotel / Resort Booking",
     base_context=(
-        "SERVICE: Hotel or resort stay booked through Gola Holidays.\n"
-        "WHAT GOLA ARRANGED: matched property to budget, confirmed booking, no check-in surprises.\n"
-        "Company: Gola Holidays, Ramnagar, Uttarakhand."
+        "SERVICE TYPE: Hotel or resort stay.\n"
+        "HOW IT WORKS: A local travel operator matches a property to your group, budget, "
+        "and location requirement, and pre-confirms the booking so there are no surprises "
+        "at check-in.\n"
+        "WRITE FROM: Your actual stay — what the property was like, what you noticed from "
+        "your room or the grounds, something specific about the location or atmosphere. "
+        "Not a checklist of services. One or two things that stuck with you."
     ),
     scenarios=[
         "Corbett: Jungle-facing resort — wildlife sounds at night, forest atmosphere",
@@ -72,7 +88,7 @@ _HOTEL = ServiceContext(
         "Haridwar: Hotel near the ghats, easy access for evening aarti",
         "Auli: Mountain resort with snow views and Nanda Devi peak backdrop",
         "Mussoorie: Hillside property with valley view, near Mall Road",
-        "Munsiyari: Remote Himalayan stay, Panchachuli peaks visible on clear mornings"
+        "Munsiyari: Remote Himalayan stay, Panchachuli peaks visible on clear mornings",
     ],
 )
 
@@ -83,9 +99,12 @@ _TAXI = ServiceContext(
     service_id="taxi",
     service_name="Taxi / Cab Service",
     base_context=(
-        "SERVICE: Taxi or cab arranged through Gola Holidays.\n"
-        "WHAT GOLA ARRANGED: cab booking, vehicle assignment, driver coordination.\n"
-        "Company: Gola Holidays, Ramnagar, Uttarakhand."
+        "SERVICE TYPE: Taxi or cab for a specific route.\n"
+        "HOW IT WORKS: A vehicle and driver are pre-assigned for a pickup from a station, "
+        "airport, or hotel for a specific route. Local operators know the mountain roads well.\n"
+        "WRITE FROM: Your experience of the journey — the drive, the vehicle, the roads, "
+        "what you saw along the way. The mountain terrain, the hairpin bends, the views. "
+        "Not a logistics summary — the actual feel of being in that car on that road."
     ),
     scenarios=[
         "Airport Transfer: Pantnagar Airport → Ramnagar / Corbett (Swift Dzire or Etios)",
@@ -96,7 +115,7 @@ _TAXI = ServiceContext(
         "Long Route: Delhi → Nainital overnight drive (Innova Crysta)",
         "Long Route: Delhi → Haridwar / Rishikesh (Swift Dzire)",
         "Long Route: Kathgodam → Munsiyari long scenic mountain drive (Innova Crysta)",
-        "Long Route: Ramnagar → Corbett safari zones (Local Jeep)"
+        "Long Route: Ramnagar → Corbett safari zones (Local Jeep)",
     ],
 )
 
@@ -107,9 +126,14 @@ _TOUR = ServiceContext(
     service_id="tour",
     service_name="Tour Package (Multi-day)",
     base_context=(
-        "SERVICE: Multi-day tour package from Gola Holidays.\n"
-        "WHAT GOLA ARRANGED: itinerary, accommodation, transport, guide, permit where needed.\n"
-        "Company: Gola Holidays, Ramnagar, Uttarakhand."
+        "SERVICE TYPE: Multi-day tour package.\n"
+        "HOW IT WORKS: A pre-built itinerary covering multiple days, with accommodation, "
+        "transport, and activities coordinated in advance. Permits and guides are included "
+        "where needed.\n"
+        "WRITE FROM: A specific moment, place, or day from the trip — not the overall "
+        "package logistics. Pick the one thing that stays with you: a shrine at dawn, "
+        "a view from a meadow, a meal on the road, a moment with the group. "
+        "Let the trip breathe — don't summarize every stop."
     ),
     scenarios=[
         "Wildlife: Jim Corbett 2N/3D — stay + safari + local sightseeing",
@@ -123,7 +147,7 @@ _TOUR = ServiceContext(
         "Pilgrimage: Kedarnath Yatra — helicopter or trek option",
         "Pilgrimage: Char Dham Yatra — Yamunotri, Gangotri, Kedarnath, Badrinath",
         "Pilgrimage: Haridwar + Rishikesh 2N/3D spiritual trip",
-        "Adventure: Valley of Flowers + Hemkund Sahib trekking package"
+        "Adventure: Valley of Flowers + Hemkund Sahib trekking package",
     ],
 )
 
@@ -134,9 +158,12 @@ _SIGHTSEEING = ServiceContext(
     service_id="sightseeing",
     service_name="Local Sightseeing",
     base_context=(
-        "SERVICE: Local sightseeing trip arranged by Gola Holidays.\n"
-        "WHAT GOLA ARRANGED: cab and driver for the day, route planning, local area knowledge.\n"
-        "Company: Gola Holidays, Ramnagar, Uttarakhand."
+        "SERVICE TYPE: Local sightseeing trip with a cab and driver for the day.\n"
+        "HOW IT WORKS: A vehicle covers the key local spots in the area at a comfortable "
+        "pace. The driver knows the local routes and timings.\n"
+        "WRITE FROM: The actual place — what it looked like, how it felt to be there, "
+        "what you or your group noticed. A specific spot, a specific moment. "
+        "Not 'we visited X Y Z' — what ONE of those places was actually like."
     ),
     scenarios=[
         "Corbett Area: Garjia Devi Temple — hillside temple on a rock in the Kosi river",
@@ -146,7 +173,7 @@ _SIGHTSEEING = ServiceContext(
         "Nainital: Naini Lake boat ride and Mall Road stroll",
         "Nainital: Tiffin Top (Dorothy's Seat) — panoramic Himalayan view",
         "Nainital: Snow View Point (cable car) and Naina Devi Temple",
-        "Nainital: Day trip covering Bhimtal Lake, Sattal, and Naukuchiatal"
+        "Nainital: Day trip covering Bhimtal Lake, Sattal, and Naukuchiatal",
     ],
 )
 

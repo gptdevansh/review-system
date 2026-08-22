@@ -6,7 +6,7 @@ opening word variety, Hinglish density, Gola Holidays mention rate.
 import re
 from collections import Counter, defaultdict
 
-with open("thirty_reviews_output.txt", encoding="utf-8") as f:
+with open("thirty_reviews_v2.txt", encoding="utf-8") as f:
     raw = f.read()
 
 # Split into individual reviews
@@ -78,19 +78,21 @@ concepts = {
 
 for concept, (pattern, _) in concepts.items():
     matches = [i+1 for i, r in enumerate(reviews) if re.search(pattern, r, re.IGNORECASE)]
-    pct = len(matches) / len(reviews) * 100
+    total = len(reviews)
+    pct = len(matches) / total * 100
     bar = "█" * len(matches)
-    flag = " ⚠️ HIGH" if len(matches) >= 18 else (" 📊 OK" if len(matches) >= 8 else "")
-    print(f"  {concept:<28} {len(matches):>2}/30  ({pct:.0f}%)  {bar}{flag}")
+    flag = " ⚠️ HIGH" if len(matches) >= total * 0.6 else (" 📊 OK" if len(matches) >= total * 0.25 else "")
+    print(f"  {concept:<28} {len(matches):>2}/{total}  ({pct:.0f}%)  {bar}{flag}")
 
 # ── 5. Gola Holidays mention rate ─────────────────────────────────────────────
 print("\n" + "=" * 60)
 print("5. 'GOLA HOLIDAYS' MENTION RATE")
 print("=" * 60)
 gola_mentions = [i+1 for i, r in enumerate(reviews) if "gola holidays" in r.lower()]
-print(f"  Mentioned in: {len(gola_mentions)}/30 reviews ({len(gola_mentions)/30*100:.0f}%)")
-print(f"  Reviews WITHOUT mention: {[i+1 for i in range(30) if i+1 not in gola_mentions]}")
-print(f"  {'⚠️  Too high (every review)' if len(gola_mentions) == 30 else '✅ Good variation' if len(gola_mentions) < 25 else '📊 Acceptable'}")
+total = len(reviews)
+print(f"  Mentioned in: {len(gola_mentions)}/{total} reviews ({len(gola_mentions)/total*100:.0f}%)")
+print(f"  Reviews WITHOUT mention: {[i+1 for i in range(total) if i+1 not in gola_mentions]}")
+print(f"  {'⚠️  Too high (every review)' if len(gola_mentions) == total else '✅ Good variation' if len(gola_mentions) < total * 0.80 else '📊 Acceptable'}")
 
 # ── 6. Hinglish density ────────────────────────────────────────────────────────
 print("\n" + "=" * 60)

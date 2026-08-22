@@ -5,7 +5,10 @@ API limits per key: 15 RPM / 250k TPM / 500 RPD
 Key pool: 3 keys in round-robin (GeminiClient.KeyPool handles this automatically)
 Pacing: 1.5s gap between requests → ~40 RPM total, ~13 RPM per key
 Each key is called every 3rd request — well under individual 15 RPM limits.
-Expected runtime: ~50 seconds for 30 reviews
+Expected runtime: ~60 seconds for 30 reviews
+
+v2: uses updated system_prompt, service_prompts, review_randomizer, and review_generator
+    Output written to thirty_reviews_v2.txt (separate from v1 batch)
 
 Usage:
     source .venv/bin/activate
@@ -16,8 +19,8 @@ import time
 
 from app.core.review_generator import agenerate_review, clear_generation_cache
 
-OUTPUT_FILE = "thirty_reviews_output.txt"
-TOTAL        = 20
+OUTPUT_FILE = "thirty_reviews_v2.txt"
+TOTAL        = 30
 GAP_SECONDS  = 1.5    # 3 keys × ~13 RPM each = ~40 RPM total, safe under 15 RPM/key
 RETRY_WAIT   = 10     # seconds to wait on 429 before switching to next key
 MAX_RETRIES  = 6
